@@ -719,7 +719,7 @@ async function fetchHROdds() {
   const eventOddsPayloads = [];
 
   for (const event of events) {
-    const eventOddsUrl = `https://api.the-odds-api.com/v4/sports/${sport}/events/${event.id}/odds/?apiKey=${key}&regions=${region}&markets=${market}&oddsFormat=${oddsFormat}&bookmakers=fanduel,draftkings`;
+    const eventOddsUrl = `https://api.the-odds-api.com/v4/sports/${sport}/events/${event.id}/odds/?apiKey=${key}&regions=${region}&markets=${market}&oddsFormat=${oddsFormat}&bookmakers=fanduel,draftkings,betmgm`;
     const eventOddsRes = await fetchWithRateLimitRetry(eventOddsUrl, `event ${event.id}`);
 
     sessionReqs++;
@@ -730,12 +730,18 @@ async function fetchHROdds() {
     }
 
     const eventOdds = await eventOddsRes.json();
-    const nonBetmgmApiBooks = (eventOdds.bookmakers || []).filter(b => normalizeBookKey(b) !== 'betmgm');
-    eventOdds.bookmakers = nonBetmgmApiBooks.filter(isTrackedBook);
+    const apiBooks = (eventOdds.bookmakers || []).filter(book => {
+      const key = normalizeBookKey(book);
+      return isTrackedBook(book) || key === 'betmgm';
+    });
+    eventOdds.bookmakers = apiBooks;
 
     const scrapedMatch = betmgmScrapeByMatchup.get(matchupKey(eventOdds.away_team, eventOdds.home_team));
     if (scrapedMatch?.bookmakers?.length) {
-      eventOdds.bookmakers = [...eventOdds.bookmakers, ...scrapedMatch.bookmakers];
+      eventOdds.bookmakers = [
+        ...eventOdds.bookmakers.filter(book => normalizeBookKey(book) !== 'betmgm'),
+        ...scrapedMatch.bookmakers
+      ];
       log(`Added co.betmgm scraped odds for ${eventOdds.away_team} @ ${eventOdds.home_team}.`, 'info');
     }
 
