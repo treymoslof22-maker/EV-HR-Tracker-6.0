@@ -504,6 +504,14 @@ const TRACKED_BOOKMAKERS = ['fanduel', 'draftkings'];
 const SCRAPE_FALLBACK_BOOKMAKERS = ['fanduel', 'draftkings'];
 const HR_MARKET_KEYS = ['batter_home_runs', 'batter_home_runs_alternate'];
 
+function isHrMarketKey(marketKey) {
+  const key = (marketKey || '').toLowerCase().trim();
+  if (!key) return false;
+  if (HR_MARKET_KEYS.includes(key)) return true;
+  if (key === 'player_home_runs') return true;
+  return key.includes('home') && key.includes('run') && (key.includes('batter') || key.includes('player'));
+}
+
 function normalizeBookKey(book) {
   const raw = `${book?.key || ''} ${book?.title || ''}`.toLowerCase();
   if (raw.includes('fanduel')) return 'fanduel';
@@ -630,7 +638,7 @@ async function fetchBetmgmColoradoScrape() {
             key: 'betmgm',
             title: book.title || 'BetMGM Colorado',
             markets: (book.markets || [])
-              .filter(m => HR_MARKET_KEYS.includes(m?.key))
+              .filter(m => isHrMarketKey(m?.key))
               .map(m => ({
                 key: m.key,
                 outcomes: (m.outcomes || []).map(o => ({
@@ -672,7 +680,7 @@ async function fetchScrapedBookmakerFallback(eventId) {
         key: normalizeBookKey(book),
         title: book.title || book.key,
         markets: (book.markets || [])
-          .filter(m => HR_MARKET_KEYS.includes(m?.key))
+          .filter(m => isHrMarketKey(m?.key))
           .map(m => ({
             key: m.key,
             outcomes: (m.outcomes || []).map(o => ({
@@ -700,7 +708,7 @@ async function fetchHROdds() {
   );
   
   const sport = 'baseball_mlb';
-  const market = HR_MARKET_KEYS.join(',');
+  const market = [...new Set([...HR_MARKET_KEYS, 'player_home_runs'])].join(',');
   const region = 'us';
   const oddsFormat = 'american';
   
@@ -915,7 +923,7 @@ async function runScan() {
       b.key !== 'betmgm' && !b.title?.toLowerCase().includes('betmgm')
     ) || [];
     
-    const hrMarketsBetMGM = betmgmBook.markets?.filter(m => HR_MARKET_KEYS.includes(m.key)) || [];
+    const hrMarketsBetMGM = betmgmBook.markets?.filter(m => isHrMarketKey(m.key)) || [];
     if (!hrMarketsBetMGM.length) continue;
     
     for (const outcome of hrMarketsBetMGM.flatMap(m => m.outcomes || []).filter(isSingleHomeRunOutcome)) {
@@ -936,7 +944,7 @@ async function runScan() {
       const marketProbs = [];
       for (const book of otherBooks) {
         const candidateOutcomes = (book.markets || [])
-          .filter(m => HR_MARKET_KEYS.includes(m.key))
+          .filter(m => isHrMarketKey(m.key))
           .flatMap(m => m.outcomes || [])
           .filter(isSingleHomeRunOutcome);
         if (!candidateOutcomes.length) continue;
